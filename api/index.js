@@ -16,11 +16,16 @@ export default async function handler(req, res) {
       const name = (titleMatch && titleMatch[1]) ? titleMatch[1].trim() : "";
       return res.status(200).json({ name });
     } else if (type === "inst") {
-      const fetchRes = await fetch(`https://tw.stock.yahoo.com/_td-stock/api/resource/StockServices.institutionalInvestors;limit=5;symbol=${symbol}`);
+      // 優先使用隱藏的 TD-Stock API 路徑
+      const targetSymbol = symbol.includes('.') ? symbol : `${symbol}.TW`;
+      const url = `https://tw.stock.yahoo.com/_td-stock/api/resource/StockServices.institutionalInvestors;limit=5;symbol=${targetSymbol}`;
+      const fetchRes = await fetch(url);
       if (fetchRes.ok) {
         const data = await fetchRes.json();
-        if (data && data.institutionalInvestors) {
-          return res.status(200).json(data.institutionalInvestors);
+        // 容錯處理：支援直接回傳陣列或物件包含 institutionalInvestors 屬性
+        const list = data.institutionalInvestors || data;
+        if (Array.isArray(list)) {
+          return res.status(200).json(list.slice(0, 5));
         }
       }
       return res.status(200).json([]);
