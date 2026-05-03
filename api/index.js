@@ -19,12 +19,15 @@ export default async function handler(req, res) {
       const url = `https://tw.stock.yahoo.com/quote/${code}/institutional-investors`;
       const fetchRes = await fetch(url);
       const html = await fetchRes.text();
-      const match = html.match(/"institutionalInvestors":(\[.*?\])/);
-      let data = [];
-      if (match) {
-        data = JSON.parse(match[1]).slice(0, 5);
+      const stateMatch = html.match(/<script id="qsp-initial-state" type="application\/json">(.*?)<\/script>/);
+      if (stateMatch) {
+        const stateData = JSON.parse(stateMatch[1]);
+        const instData = stateData?.context?.dispatcher?.stores?.QuotePageStore?.institutionalInvestors;
+        if (instData && Array.isArray(instData)) {
+          return res.status(200).json(instData.slice(0, 5));
+        }
       }
-      return res.status(200).json(data);
+      return res.status(200).json([]);
     } else {
       const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1y`;
       const fetchRes = await fetch(url);
