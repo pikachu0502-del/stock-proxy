@@ -17,13 +17,14 @@ export default async function handler(req, res) {
       return res.status(200).json({ name });
     } else if (type === "inst") {
       const targetSymbol = symbol.includes('.') ? symbol : `${symbol}.TW`;
-      const url = `https://tw.stock.yahoo.com/_td-stock/api/resource/StockServices.institutionalInvestors;limit=5;symbol=${targetSymbol}`;
+      const url = `https://tw.stock.yahoo.com/_td-stock/api/resource/StockServices.institutionalInvestors;symbol=${targetSymbol}`;
       const fetchRes = await fetch(url);
       if (fetchRes.ok) {
         const data = await fetchRes.json();
         const list = data.institutionalInvestors || [];
-        // 將 Yahoo 特有的 {raw: 123} 結構轉為數值，並將股轉張
-        const formatted = list.map(item => {
+        
+        // 預處理：提取 raw 數值並直接換算為張數
+        const processed = list.map(item => {
           const getRaw = (obj) => (obj && typeof obj === 'object') ? (obj.raw || 0) : (parseFloat(obj) || 0);
           return {
             f: Math.round(getRaw(item.foreignInvestorBuySell) / 1000),
@@ -32,7 +33,7 @@ export default async function handler(req, res) {
             total: Math.round(getRaw(item.totalBuySell) / 1000)
           };
         });
-        return res.status(200).json(formatted);
+        return res.status(200).json(processed);
       }
       return res.status(200).json([]);
     } else {
