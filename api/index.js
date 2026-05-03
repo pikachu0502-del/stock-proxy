@@ -23,19 +23,25 @@ export default async function handler(req, res) {
         const data = await fetchRes.json();
         const list = data.institutionalInvestors || [];
         
-        // 預處理：提取 raw 數值並直接換算為張數
-        const processed = list.map(item => {
-          const getRaw = (obj) => (obj && typeof obj === 'object') ? (obj.raw || 0) : (parseFloat(obj) || 0);
-          return {
-            f: Math.round(getRaw(item.foreignInvestorBuySell) / 1000),
-            t: Math.round(getRaw(item.investmentTrustBuySell) / 1000),
-            d: Math.round(getRaw(item.dealerBuySell) / 1000),
-            total: Math.round(getRaw(item.totalBuySell) / 1000)
-          };
+        let f = 0, t = 0, d = 0, total = 0;
+        // 累加近五個交易日數值
+        list.slice(0, 5).forEach(item => {
+          const getVal = (obj) => (obj && typeof obj === 'object') ? (obj.raw || 0) : (parseFloat(obj) || 0);
+          f += getVal(item.foreignInvestorBuySell);
+          t += getVal(item.investmentTrustBuySell);
+          d += getVal(item.dealerBuySell);
+          total += getVal(item.totalBuySell);
         });
-        return res.status(200).json(processed);
+
+        return res.status(200).json({
+          f: Math.round(f / 1000),
+          t: Math.round(t / 1000),
+          d: Math.round(d / 1000),
+          total: Math.round(total / 1000),
+          valid: list.length > 0
+        });
       }
-      return res.status(200).json([]);
+      return res.status(200).json({ valid: false });
     } else {
       const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1y`;
       const fetchRes = await fetch(url);
