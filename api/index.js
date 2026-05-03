@@ -16,15 +16,11 @@ export default async function handler(req, res) {
       const name = (titleMatch && titleMatch[1]) ? titleMatch[1].trim() : "";
       return res.status(200).json({ name });
     } else if (type === "inst") {
-      const url = `https://tw.stock.yahoo.com/quote/${code}/institutional-investors`;
-      const fetchRes = await fetch(url);
-      const html = await fetchRes.text();
-      const stateMatch = html.match(/<script id="qsp-initial-state" type="application\/json">(.*?)<\/script>/);
-      if (stateMatch) {
-        const stateData = JSON.parse(stateMatch[1]);
-        const instData = stateData?.context?.dispatcher?.stores?.QuotePageStore?.institutionalInvestors;
-        if (instData && Array.isArray(instData)) {
-          return res.status(200).json(instData.slice(0, 5));
+      const fetchRes = await fetch(`https://tw.stock.yahoo.com/_td-stock/api/resource/StockServices.institutionalInvestors;limit=5;symbol=${symbol}`);
+      if (fetchRes.ok) {
+        const data = await fetchRes.json();
+        if (data && data.institutionalInvestors) {
+          return res.status(200).json(data.institutionalInvestors);
         }
       }
       return res.status(200).json([]);
