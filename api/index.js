@@ -1,19 +1,24 @@
 export default async function handler(req, res) {
-  const { symbol, type } = req.query;
-  
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET");
+  res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+
+  if (req.method === "OPTIONS") {
+    return res.status(200).end();
+  }
+
+  const { symbol, type } = req.query;
+
+  const headers = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Referer": "https://www.wantgoo.com/"
+  };
 
   try {
-    // 1. 優先處理不需要 symbol 參數的 VIX 請求
+    // 1. 優先處理不需要 symbol 參數的 VIX 報價請求
     if (type === "vix") {
-      const url = "https://www.wantgoo.com/investor-api/chart/index/realtime?symbol=VIXTWN";
-      const fetchRes = await fetch(url, {
-        headers: {
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-          "Referer": "https://www.wantgoo.com/"
-        }
-      });
+      const url = "https://www.wantgoo.com/investor-api/quotes?symbols=VIXTWN";
+      const fetchRes = await fetch(url, { headers });
       if (fetchRes.ok) {
         const data = await fetchRes.json();
         return res.status(200).json(data);
@@ -21,27 +26,29 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: "Failed to fetch VIX from WantGoo" });
     }
 
-    // 2. 其餘請求必須包含 symbol 參數
+    // 2. 其餘個股請求必須包含 symbol 參數
     if (!symbol) return res.status(400).json({ error: "Missing symbol" });
     const code = symbol.replace(".TW", "").replace(".TWO", "");
 
     if (type === "name") {
       const url = `https://tw.stock.yahoo.com/quote/${code}`;
-      const fetchRes = await fetch(url);
-      const html = await fetchRes.text();
-      const titleMatch = html.match(/<title>([^<]+?)\s*\(\d+\)/);
-      const name = (titleMatch && titleMatch[1]) ? titleMatch[1].trim() : "";
-      return res.status(200).json({ name });
+      const fetchRes = await fetch(url, { headers });
+      if (fetchRes.ok) {
+        const html = await fetchRes.text();
+        const titleMatch = html.match(/<title>([^<]+?)\s*\(\d+\)/);
+        const name = (titleMatch && titleMatch[1]) ? titleMatch[1].trim() : "";
+        return res.status(200).json({ name });
+      }
+      return res.status(200).json({ name: "" });
     } else if (type === "inst") {
       const targetSymbol = symbol.includes('.') ? symbol : `${symbol}.TW`;
       const url = `https://tw.stock.yahoo.com/_td-stock/api/resource/StockServices.institutionalInvestors;symbol=${targetSymbol}`;
-      const fetchRes = await fetch(url);
+      const fetchRes = await fetch(url, { headers });
       if (fetchRes.ok) {
         const data = await fetchRes.json();
         const list = data.institutionalInvestors || [];
         
         let f = 0, t = 0, d = 0, total = 0;
-        // 累加近五個交易日數值
         list.slice(0, 5).forEach(item => {
           const getVal = (obj) => (obj && typeof obj === 'object') ? (obj.raw || 0) : (parseFloat(obj) || 0);
           f += getVal(item.foreignInvestorBuySell);
@@ -61,9 +68,12 @@ export default async function handler(req, res) {
       return res.status(200).json({ valid: false });
     } else {
       const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1y`;
-      const fetchRes = await fetch(url);
-      const data = await fetchRes.json();
-      return res.status(200).json(data);
+      const fetchRes = await fetch(url, { headers });
+      if (fetchRes.ok) {
+        const data = await fetchRes.json();
+        return res.status(200).json(data);
+      }
+      return res.status(500).json({ error: "Failed to fetch price data" });
     }
   } catch (error) {
     res.status(500).json({ error: error.message });
