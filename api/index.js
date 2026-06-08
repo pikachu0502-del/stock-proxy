@@ -1,11 +1,28 @@
 export default async function handler(req, res) {
   const { symbol, type } = req.query;
-  if (!symbol) return res.status(400).json({ error: "Missing symbol" });
-
+  
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET");
 
   try {
+    // 1. 優先處理不需要 symbol 參數的 VIX 請求
+    if (type === "vix") {
+      const url = "https://www.wantgoo.com/investor-api/chart/index/realtime?symbol=VIXTWN";
+      const fetchRes = await fetch(url, {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+          "Referer": "https://www.wantgoo.com/"
+        }
+      });
+      if (fetchRes.ok) {
+        const data = await fetchRes.json();
+        return res.status(200).json(data);
+      }
+      return res.status(500).json({ error: "Failed to fetch VIX from WantGoo" });
+    }
+
+    // 2. 其餘請求必須包含 symbol 參數
+    if (!symbol) return res.status(400).json({ error: "Missing symbol" });
     const code = symbol.replace(".TW", "").replace(".TWO", "");
 
     if (type === "name") {
